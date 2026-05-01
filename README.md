@@ -21,11 +21,6 @@ This plugin uses the INI-style file format and accepts the following options:
   returns a DENYSOFT (TEMPFAIL) and the client will retry later. "no" allows the
   transaction to continue to the next plugin.
 
-  DNS errors always return DENYSOFT, so this should be safe to change to "deny".
-
-  This used to be a boolean, so to allow old config to work, true maps to deny
-  and false maps to defer.
-
 <!-- leave these buried at the bottom of the document -->
 
 [ci-img]: https://github.com/haraka/haraka-plugin-mail_from.is_resolvable/actions/workflows/ci.yml/badge.svg
