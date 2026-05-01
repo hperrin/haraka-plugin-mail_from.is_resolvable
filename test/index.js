@@ -12,18 +12,38 @@ const { Resolver } = dnsPromises
 describe('mail_from.is_resolvable', function () {
   beforeEach(function () {
     this.plugin = new fixtures.plugin('mail_from.is_resolvable')
-    this.plugin.register()
 
-    this.connection = fixtures.connection.createConnection()
-    this.connection.init_transaction()
+    this.configfile = {
+      main: {
+        allow_mx_ip: false,
+        re_bogus_ip: '^(?:0\.0\.0\.0|255\.255\.255\.255|127\.)',
+      },
 
-    this.txt = this.connection.transaction
+      reject: {
+        no_mx: 'deny',
+      },
+    }
 
-    this.get_mx_spy = sinon.stub(net_utils, 'get_mx')
+    if (this.plugin) {
+      this.plugin.config.get = function () {
+        return this.configfile
+      }.bind(this)
+    }
 
-    this.next = sinon.stub()
+    this.setup = () => {
+      this.plugin.register()
 
-    this.domain = 'example.com'
+      this.connection = fixtures.connection.createConnection()
+      this.connection.init_transaction()
+
+      this.txt = this.connection.transaction
+
+      this.get_mx_spy = sinon.stub(net_utils, 'get_mx')
+
+      this.next = sinon.stub()
+
+      this.domain = 'example.com'
+    }
   })
 
   afterEach(function () {
@@ -32,6 +52,8 @@ describe('mail_from.is_resolvable', function () {
 
   describe('hook_mail', function () {
     it('Allow - mail_from without host', async function () {
+      this.setup()
+
       await this.plugin.hook_mail(this.next, this.connection, [{}])
 
       assert.equal(this.txt.results.get(this.plugin).skip[0], 'null host')
@@ -41,6 +63,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENYSOFT - get_mx timeout', async function () {
+      this.setup()
+
       // Configure the stub to simulate a timeout
       const timeoutError = new Error('DNS request timed out')
       timeoutError.code = dnsPromises.TIMEOUT
@@ -63,7 +87,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENYSOFT - resolveMx timeout', async function () {
-      this.plugin.cfg.reject.no_mx = 'deny'
+      this.configfile.reject.no_mx = 'false'
+      this.setup()
 
       this.get_mx_spy.restore()
 
@@ -89,6 +114,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENY - No MX for your FROM address', async function () {
+      this.setup()
+
       this.get_mx_spy.resolves([])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -103,7 +130,9 @@ describe('mail_from.is_resolvable', function () {
 
     it('DENYSOFT - No MX for your FROM address', async function () {
       // Make sure old config works as intended.
-      this.plugin.cfg.reject.no_mx = 'false'
+      this.configfile.reject.no_mx = 'false'
+      this.setup()
+
       this.get_mx_spy.resolves([])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -122,7 +151,9 @@ describe('mail_from.is_resolvable', function () {
 
     it('DENY - No MX for your FROM address', async function () {
       // Make sure old config works as intended.
-      this.plugin.cfg.reject.no_mx = 'true'
+      this.configfile.reject.no_mx = 'true'
+      this.setup()
+
       this.get_mx_spy.resolves([])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -136,9 +167,10 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('Allow - MX is IP address', async function () {
-      this.get_mx_spy.resolves([{ exchange: '64.233.186.26' }])
+      this.configfile.main.allow_mx_ip = true
+      this.setup()
 
-      this.plugin.cfg.main.allow_mx_ip = true
+      this.get_mx_spy.resolves([{ exchange: '64.233.186.26' }])
 
       await this.plugin.hook_mail(this.next, this.connection, [
         new Address(`<test@${this.domain}>`),
@@ -151,7 +183,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENY - resolve4 and resolve6 both timeout', async function () {
-      this.plugin.cfg.reject.no_mx = 'deny'
+      this.configfile.reject.no_mx = 'deny'
+      this.setup()
 
       this.get_mx_spy.resolves([{ exchange: `mx.${this.domain}` }])
 
@@ -182,7 +215,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENY - DNS server failure', async function () {
-      this.plugin.cfg.reject.no_mx = 'deny'
+      this.configfile.reject.no_mx = 'deny'
+      this.setup()
 
       this.get_mx_spy.resolves([{ exchange: `mx.${this.domain}` }])
 
@@ -210,7 +244,9 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENYSOFT - No valid MX for the FROM address', async function () {
-      this.plugin.cfg.reject.no_mx = 'defer'
+      this.configfile.reject.no_mx = 'defer'
+      this.setup()
+
       this.get_mx_spy.resolves([{ exchange: '64.233.186.26' }])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -228,7 +264,9 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('Allow - No valid MX for the FROM address', async function () {
-      this.plugin.cfg.reject.no_mx = 'no'
+      this.configfile.reject.no_mx = 'no'
+      this.setup()
+
       this.get_mx_spy.resolves([{ exchange: '64.233.186.26' }])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -242,6 +280,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENY - No valid MX for the FROM address', async function () {
+      this.setup()
+
       this.get_mx_spy.resolves([{ exchange: '64.233.186.26' }])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -259,6 +299,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('Allow - valid MX hostname resolved to IPv6', async function () {
+      this.setup()
+
       this.resolve_mx_hosts_spy = sinon.stub(net_utils, 'resolve_mx_hosts')
 
       this.get_mx_spy.resolves([{ exchange: 'gmail-smtp-in.l.google.com' }])
@@ -277,6 +319,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('Allow - valid MX hostname resolved to IPv4', async function () {
+      this.setup()
+
       this.resolve_mx_hosts_spy = sinon.stub(net_utils, 'resolve_mx_hosts')
 
       this.get_mx_spy.resolves([{ exchange: 'gmail-smtp-in.l.google.com' }])
@@ -296,6 +340,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENY - MX hostname does not resolve', async function () {
+      this.setup()
+
       this.resolve_mx_hosts_spy = sinon.stub(net_utils, 'resolve_mx_hosts')
 
       this.get_mx_spy.resolves([{ exchange: 'mx.${this.domain}' }])

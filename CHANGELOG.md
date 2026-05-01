@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### [1.2.0] - 2026-04-30
 
-- added new config option to not deny on missing or invalid MX record
+- changed [reject]no_mx to allow invalid MX record
 
 ### [1.1.0] - 2025-06-15
 
