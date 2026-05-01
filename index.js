@@ -12,7 +12,7 @@ exports.load_ini = function () {
   this.cfg = this.config.get(
     'mail_from.is_resolvable.ini',
     {
-      booleans: ['-main.allow_mx_ip', '+reject.no_mx'],
+      booleans: ['-main.allow_mx_ip'],
     },
     () => {
       this.load_ini()
@@ -37,6 +37,22 @@ exports.hook_mail = async function (next, connection, params) {
 
   const domain = mail_from.host
 
+  let rejectMode
+  switch (this.cfg.reject.no_mx) {
+    case 'no':
+      rejectMode = 'no'
+      break
+    case 'false':
+    case 'defer':
+      rejectMode = 'defer'
+      break
+    case 'true':
+    case 'deny':
+    default:
+      rejectMode = 'deny'
+      break
+  }
+
   connection.logdebug(this, `resolving MX for domain ${domain}`)
 
   let exchanges
@@ -51,10 +67,12 @@ exports.hook_mail = async function (next, connection, params) {
 
   if (!exchanges || !exchanges.length) {
     results.add(this, { fail: 'has_fwd_dns', emit: true })
-    return next(
-      this.cfg.reject.no_mx ? DENY : DENYSOFT,
-      'No MX for your FROM address',
-    )
+    if (rejectMode === 'no') return next()
+    else
+      return next(
+        rejectMode === 'deny' ? DENY : DENYSOFT,
+        'No MX for your FROM address',
+      )
   }
 
   if (this.cfg.main.allow_mx_ip) {
@@ -96,8 +114,10 @@ exports.hook_mail = async function (next, connection, params) {
   }
 
   results.add(this, { fail: 'has_fwd_dns', emit: true })
-  return next(
-    this.cfg.reject.no_mx ? DENY : DENYSOFT,
-    'No valid MX for your FROM address',
-  )
+  if (rejectMode === 'no') return next()
+  else
+    return next(
+      rejectMode === 'deny' ? DENY : DENYSOFT,
+      'No valid MX for your FROM address',
+    )
 }

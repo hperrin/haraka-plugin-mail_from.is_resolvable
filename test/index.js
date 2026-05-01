@@ -63,7 +63,7 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENYSOFT - resolveMx timeout', async function () {
-      this.plugin.cfg.reject.no_mx = true
+      this.plugin.cfg.reject.no_mx = 'deny'
 
       this.get_mx_spy.restore()
 
@@ -102,7 +102,8 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENYSOFT - No MX for your FROM address', async function () {
-      this.plugin.cfg.reject.no_mx = false
+      // Make sure old config works as intended.
+      this.plugin.cfg.reject.no_mx = 'false'
       this.get_mx_spy.resolves([])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -117,6 +118,21 @@ describe('mail_from.is_resolvable', function () {
         DENYSOFT,
         'No MX for your FROM address',
       )
+    })
+
+    it('DENY - No MX for your FROM address', async function () {
+      // Make sure old config works as intended.
+      this.plugin.cfg.reject.no_mx = 'true'
+      this.get_mx_spy.resolves([])
+
+      await this.plugin.hook_mail(this.next, this.connection, [
+        new Address(`<test@${this.domain}>`),
+      ])
+
+      assert.ok(this.txt.results.has(this.plugin, 'fail', 'has_fwd_dns'))
+      sinon.assert.calledOnceWithExactly(this.get_mx_spy, this.domain)
+      sinon.assert.calledOnce(this.next)
+      sinon.assert.calledWith(this.next, DENY, 'No MX for your FROM address')
     })
 
     it('Allow - MX is IP address', async function () {
@@ -135,7 +151,7 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENY - resolve4 and resolve6 both timeout', async function () {
-      this.plugin.cfg.reject.no_mx = true
+      this.plugin.cfg.reject.no_mx = 'deny'
 
       this.get_mx_spy.resolves([{ exchange: `mx.${this.domain}` }])
 
@@ -166,7 +182,7 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENY - DNS server failure', async function () {
-      this.plugin.cfg.reject.no_mx = true
+      this.plugin.cfg.reject.no_mx = 'deny'
 
       this.get_mx_spy.resolves([{ exchange: `mx.${this.domain}` }])
 
@@ -194,7 +210,7 @@ describe('mail_from.is_resolvable', function () {
     })
 
     it('DENYSOFT - No valid MX for the FROM address', async function () {
-      this.plugin.cfg.reject.no_mx = false
+      this.plugin.cfg.reject.no_mx = 'defer'
       this.get_mx_spy.resolves([{ exchange: '64.233.186.26' }])
 
       await this.plugin.hook_mail(this.next, this.connection, [
@@ -209,6 +225,20 @@ describe('mail_from.is_resolvable', function () {
         DENYSOFT,
         'No valid MX for your FROM address',
       )
+    })
+
+    it('Allow - No valid MX for the FROM address', async function () {
+      this.plugin.cfg.reject.no_mx = 'no'
+      this.get_mx_spy.resolves([{ exchange: '64.233.186.26' }])
+
+      await this.plugin.hook_mail(this.next, this.connection, [
+        new Address(`<test@${this.domain}>`),
+      ])
+
+      assert.ok(this.txt.results.has(this.plugin, 'fail', 'has_fwd_dns'))
+      sinon.assert.calledOnceWithExactly(this.get_mx_spy, this.domain)
+      sinon.assert.calledOnce(this.next)
+      assert.equal(this.next.getCall(0).args.length, 0)
     })
 
     it('DENY - No valid MX for the FROM address', async function () {
