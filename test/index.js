@@ -16,7 +16,7 @@ describe('mail_from.is_resolvable', function () {
     this.configfile = {
       main: {
         allow_mx_ip: false,
-        re_bogus_ip: '^(?:0\.0\.0\.0|255\.255\.255\.255|127\.)',
+        re_bogus_ip: '^(?:0\\.0\\.0\\.0|255\\.255\\.255\\.255|127\\.)',
       },
 
       reject: {
